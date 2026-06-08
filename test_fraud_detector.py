@@ -1,6 +1,13 @@
 import unittest
 
-from fraud_detector import generate_sample_data, prepare_features, train_model
+from fraud_detector import (
+    create_visualizations,
+    generate_sample_data,
+    plot_confusion_matrix,
+    prepare_features,
+    run_eda,
+    train_model,
+)
 
 
 class FraudDetectorTests(unittest.TestCase):
@@ -22,6 +29,23 @@ class FraudDetectorTests(unittest.TestCase):
             self.assertIn(name, artifacts.metrics)
             self.assertGreaterEqual(artifacts.metrics[name], 0.0)
             self.assertLessEqual(artifacts.metrics[name], 1.0)
+
+        self.assertIn("roc_auc", artifacts.metrics)
+
+    def test_eda_visualizations_and_confusion_matrix(self):
+        data = generate_sample_data(n_samples=300, random_state=4)
+
+        eda = run_eda(data)
+        for key in ("shape", "missing_values", "class_distribution", "numeric_summary"):
+            self.assertIn(key, eda)
+
+        figures = create_visualizations(data)
+        self.assertGreaterEqual(len(figures), 1)
+        self.assertTrue(all(hasattr(fig, "axes") for fig in figures))
+
+        artifacts = train_model(data)
+        cm_fig = plot_confusion_matrix(artifacts.y_test, artifacts.y_pred)
+        self.assertTrue(hasattr(cm_fig, "axes"))
 
 
 if __name__ == "__main__":

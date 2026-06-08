@@ -10,6 +10,11 @@ from fraud_detector import (
     train_model,
 )
 
+DEMO_MIN_ROWS = 500
+DEMO_MAX_ROWS = 5000
+DEMO_STEP_ROWS = 500
+DEMO_DEFAULT_ROWS = 1500
+
 st.set_page_config(page_title="Détecteur de fraude", layout="wide")
 st.title("Détecteur de fraude")
 st.caption("EDA, modélisation et visualisation interactives avec Streamlit")
@@ -23,7 +28,13 @@ if source == "Uploader un CSV":
         st.stop()
     data = pd.read_csv(upload)
 else:
-    n_rows = st.sidebar.slider("Nombre de lignes (demo)", min_value=500, max_value=5000, step=500, value=1500)
+    n_rows = st.sidebar.slider(
+        "Nombre de lignes (demo)",
+        min_value=DEMO_MIN_ROWS,
+        max_value=DEMO_MAX_ROWS,
+        step=DEMO_STEP_ROWS,
+        value=DEMO_DEFAULT_ROWS,
+    )
     data = generate_sample_data(n_samples=n_rows)
 
 if data.empty:
@@ -67,9 +78,13 @@ if st.button("Entraîner le modèle"):
         st.error(str(exc))
     else:
         st.success("Modèle entraîné")
-        metrics_df = pd.DataFrame(
-            [{k: round(v, 4) if v is not None else None for k, v in artifacts.metrics.items()}]
-        )
+        metrics = dict(artifacts.metrics)
+        for key in ("accuracy", "precision", "recall", "f1"):
+            metrics[key] = round(metrics[key], 4)
+        if metrics["roc_auc"] is not None:
+            metrics["roc_auc"] = round(metrics["roc_auc"], 4)
+
+        metrics_df = pd.DataFrame([metrics])
         st.subheader("Métriques")
         st.dataframe(metrics_df, use_container_width=True)
         st.pyplot(plot_confusion_matrix(artifacts.y_test, artifacts.y_pred))

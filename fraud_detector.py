@@ -18,6 +18,10 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 TARGET_COLUMN = "is_fraud"
+DEFAULT_TEST_SIZE = 0.2
+DEFAULT_N_ESTIMATORS = 200
+MIN_HIST_BINS = 10
+MAX_HIST_BINS = 25
 
 
 @dataclass
@@ -92,7 +96,11 @@ def create_visualizations(df: pd.DataFrame, target_column: str = TARGET_COLUMN) 
 
     if "amount" in df.columns:
         fig_amount, ax_amount = plt.subplots(figsize=(6, 4))
-        bins = min(25, max(10, int(df.shape[0] ** 0.5)))
+        base_bins = int(df.shape[0] ** 0.5)
+        if df.shape[0] < MIN_HIST_BINS:
+            bins = max(2, base_bins)
+        else:
+            bins = min(MAX_HIST_BINS, max(MIN_HIST_BINS, base_bins))
         for label in sorted(df[target_column].dropna().unique()):
             subset = df.loc[df[target_column] == label, "amount"]
             ax_amount.hist(subset, bins=bins, alpha=0.6, label=f"{target_column}={label}")
@@ -119,6 +127,8 @@ def train_model(
     df: pd.DataFrame,
     target_column: str = TARGET_COLUMN,
     random_state: int = 42,
+    test_size: float = DEFAULT_TEST_SIZE,
+    n_estimators: int = DEFAULT_N_ESTIMATORS,
 ) -> ModelArtifacts:
     X, y = prepare_features(df, target_column=target_column)
 
@@ -128,23 +138,28 @@ def train_model(
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        test_size=0.2,
+        test_size=test_size,
         random_state=random_state,
         stratify=y,
     )
 
-    model = RandomForestClassifier(n_estimators=200, random_state=random_state, class_weight="balanced")
+    model = RandomForestClassifier(
+        n_estimators=n_estimators, random_state=random_state, class_weight="balanced"
+    )
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
-    y_proba = model.predict_proba(X_test)[:, 1]
+    proba = model.predict_proba(X_test)
+    y_proba = proba[:, 1] if proba.shape[1] > 1 else np.zeros(len(X_test))
 
     metrics = {
         "accuracy": float(accuracy_score(y_test, y_pred)),
         "precision": float(precision_score(y_test, y_pred, zero_division=0)),
         "recall": float(recall_score(y_test, y_pred, zero_division=0)),
         "f1": float(f1_score(y_test, y_pred, zero_division=0)),
-        "roc_auc": float(roc_auc_score(y_test, y_proba)) if y_test.nunique() > 1 else None,
+        "roc_auc": float(roc_auc_score(y_test, y_proba))
+        if y_test.nunique() > 1 and proba.shape[1] > 1
+        else None,
     }
 
     return ModelArtifacts(model=model, X_test=X_test, y_test=y_test, y_pred=y_pred, metrics=metrics)

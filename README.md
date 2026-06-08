@@ -11,7 +11,7 @@ python -m pip install -r requirements.txt
 ## Lancer l'application Streamlit
 
 ```bash
-streamlit run /tmp/workspace/leadrvx/finance_project/streamlit_app.py
+streamlit run streamlit_app.py
 ```
 
 ## Tests ciblés
